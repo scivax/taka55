@@ -1,0 +1,1730 @@
+<!DOCTYPE html>
+<!-- saved from url=(0046)https://lang-ship.com/dev/WebSerialAPI/01.html -->
+<html lang="ja">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Haptics Finger Sensor</title>
+    <style>
+        html {
+            font-family: Helvetica;
+            display: inline-block;
+            margin: 0px auto;
+            text-align: center;
+        }
+
+        body {
+            background-color: #808080;
+            color: #C00000;
+        }
+
+        p {
+            font-size: 19px;
+            color: #fff;
+        }
+
+        .default {
+            font-size: 20px;
+            color: #2196F3;
+        }
+    </style>
+
+</head>
+
+<body bgcolor="black">
+
+    <center>
+
+        <canvas id="canvas2" width="1000" height="750" style="background-color: #C0C0C0;"></canvas>
+        /<br />
+
+        <button id="connect">Connect BLE Device</button>
+        <p>受信データ: <span id="data">---</span></p>
+
+	<<br />
+
+	<textarea cols="120" rows="6" id="outputArea" readonly=""></textarea>
+        <br />
+
+        <canvas id="canvas" width="800" height="150" style="background-color: #C0C0C0;"></canvas>
+
+    </center>
+
+    <br>
+
+    <script>
+        const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
+        const CHAR_UUID    = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+
+        var dat = "";
+        let port;
+
+        // now they are globals
+        var canvasElem2 = document.getElementById('canvas2');
+        var ctx2 = canvasElem2.getContext('2d');
+
+        var img = new Image();
+        img.src = "hand.png";
+
+
+        // called once on startup(with delay)
+        img.onload = function () {
+            ctx2.drawImage(img, 0, 0, canvasElem2.width, canvasElem2.height);
+        }
+
+/*
+        async function onConnectButtonClick() {
+            try {
+                port = await navigator.serial.requestPort();
+                await port.open({ baudRate: 115200 });
+
+                while (port.readable) {
+                    const reader = port.readable.getReader();
+
+                    try {
+                        while (true) {
+                            const { value, done } = await reader.read();
+                            if (done) {
+                                addSerial("Canceled\n");
+                                break;
+                            }
+                            const inputValue = new TextDecoder().decode(value);
+                            console.log(inputValue);
+                            if (inputValue.substr(-1) == "\n") {
+                                addSerial(dat);
+                                //console.log(dat);
+                                drawBall(dat);
+                                dat = "";
+                            }
+                        }
+                    } catch (error) {
+                        addSerial("Error: Read" + error + "\n");
+                    } finally {
+                        reader.releaseLock();
+                    }
+                }
+            } catch (error) {
+                addSerial("Error: Open" + error + "\n");
+            }
+        }
+
+*/
+        let az = 0;
+        document.getElementById('connect').addEventListener('click', async () => {
+            try {
+                // デバイスの選択
+                const device = await navigator.bluetooth.requestDevice({
+                    filters: [{ services: [SERVICE_UUID] }]
+                });
+
+                // サーバーへの接続
+                const server = await device.gatt.connect();
+                const service = await server.getPrimaryService(SERVICE_UUID);
+                const characteristic = await service.getCharacteristic(CHAR_UUID);
+
+                // 通知の開始
+                await characteristic.startNotifications();
+                characteristic.addEventListener('characteristicvaluechanged', (event) => {
+                   const value = new TextDecoder().decode(event.target.value);
+                   document.getElementById('outputArea').innerText = value;
+                   if (value == "P"){
+                       az = 0;
+                   }
+                   else {
+                       az++;
+                   }
+                   drawBallOne(az, value);
+                });
+            } catch (error) {
+//                console.log(error);
+            }
+        });
+
+        var bufferLine = 20;
+        var textBuff = new Array(bufferLine);
+        textBuff.fill("");
+        function addSerial(msg) {
+            for (var i = bufferLine - 1; i > 0; i--) {
+                textBuff[i] = textBuff[i-1];
+            }
+            textBuff[0] = msg;
+            var textarea = document.getElementById('outputArea');
+            textarea.value = "";
+            for (var i = bufferLine - 1; i >= 0; i--) {
+                textarea.value += textBuff[i];
+            }
+             textarea.scrollTop = textarea.scrollHeight;
+        }
+
+        var dataWidth = 50;
+        var dispWidth = 800;
+        var dispHeight = 145;
+        var mulX = dispWidth / dataWidth;
+
+        var dd = [];
+        for (var i = 0; i < 8; i++) dd.push(Array(dataWidth));
+
+        
+/*        function drawBall(dat) {
+
+            var res = dat.split(" ");
+ 
+            if (res[0] != "P") {
+                return;
+            }
+
+           int n=0;
+
+            ctx2.clearRect(0, 0, canvasElem2.width, canvasElem2.height);
+
+            ctx2.drawImage(img, 0, 0, canvasElem2.width, canvasElem2.height);
+
+            drawBallOne(0,  res[1]);
+            drawBallOne(1,  res[2]);
+            drawBallOne(2,  res[3]);
+            drawBallOne(3,  res[4]);
+            drawBallOne(4,  res[5]);
+            drawBallOne(5,  res[6]);
+            drawBallOne(6,  res[7]);
+            drawBallOne(7,  res[8]);
+        }
+*/
+
+        function drawBallOne(id, val) {
+
+//            var minIr = 95000;
+//            var maxIr = 140000;
+            var minIr = 800;
+            var maxIr = 2000;
+            var rangeIr = maxIr - minIr;
+            var maxRadius = 50;
+
+            //////////
+            ctx2.font = "22px Helvetica";
+
+            var cx, cy;
+
+
+
+            var radius = Math.trunc((val - minIr) * maxRadius / rangeIr);
+            if (radius < 0 ) radius = 0;					//20250903 suzuki
+//            var col = radius * 3;
+            var col = radius * 1;
+            if (col > 255) col = 255;
+
+            if (id == 0) {
+                ctx2.clearRect(0, 0, canvasElem2.width, canvasElem2.height);
+                ctx2.drawImage(img, 0, 0, canvasElem2.width, canvasElem2.height);
+            }
+            else if (id == 1) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 100;
+                cy = 360;
+            }
+            else if (id == 2) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 100;
+                cy = 380;
+            }
+            else if (id == 3) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 100;
+                cy = 400;
+            }
+            else if (id == 4) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 100;
+                cy = 420;
+            }
+            else if (id == 5) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 120;
+                cy = 360;
+            }
+            else if (id == 6) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 120;
+                cy = 380;
+            }
+            else if (id == 7) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 120;
+                cy = 400;
+            }
+/*            else if (id == 8) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 120;
+                cy = 420;
+            }
+            else if (id == 9) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 140;
+                cy = 360;
+            }
+            else if (id == 10) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 140;
+                cy = 380;
+            }
+            else if (id == 11) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 140;
+                cy = 400;
+            }
+            else if (id == 12) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 140;
+                cy = 420;
+            }
+            else if (id == 13) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 160;
+                cy = 360;
+            }
+            else if (id == 14) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 160;
+                cy = 380;
+            }
+            else if (id == 15) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 160;
+                cy = 400;
+            }
+            else if (id == 16) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 160;
+                cy = 420;
+            }
+            else if (id == 17) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 180;
+                cy = 360;
+            }
+            else if (id == 18) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 180;
+                cy = 380;
+            }
+
+	    else if (id ==19) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 180;
+                cy = 400;
+            }
+
+	    else if (id ==20) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 180;
+                cy = 420;
+            }
+
+	    else if (id ==21) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 200;
+                cy = 360;
+            }
+
+	    else if (id ==22) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 200;
+                cy = 380;
+            }
+
+	    else if (id ==23) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 200;
+                cy = 400;
+            }
+
+	    else if (id ==24) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 200;
+                cy = 420;
+            }
+            else if (id ==25) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 300;
+                cy = 100;
+            }
+            else if (id ==26) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 300;
+                cy = 120;
+            }
+            else if (id ==27) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 300;
+                cy = 140;
+            }
+            else if (id ==28) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 300;
+                cy = 160;
+            }
+            else if (id ==29) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 320;
+                cy = 100;
+            }
+            else if (id == 30) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 320;
+                cy = 120;
+            }
+            else if (id == 31) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 320;
+                cy = 140;
+            }
+            else if (id == 32) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 320;
+                cy = 160;
+            }
+            else if (id == 33) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 340;
+                cy = 100;
+            }
+            else if (id == 34) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 340;
+                cy = 120;
+            }
+            else if (id == 35) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 340;
+                cy = 140;
+            }
+            else if (id == 36) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 340;
+                cy = 160;
+            }
+            else if (id == 37) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 360;
+                cy = 100;
+            }
+            else if (id == 38) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 360;
+                cy = 120;
+            }
+            else if (id == 39) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 360;
+                cy = 140;
+            }
+            else if (id == 40) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 360;
+                cy = 160;
+            }
+            else if (id == 41) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 380;
+                cy = 100;
+            }
+            else if (id == 42) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 380;
+                cy = 120;
+            }
+	    else if (id ==43) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 380;
+                cy = 140;
+            }
+
+	    else if (id ==44) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 380;
+                cy = 160;
+            }
+
+	    else if (id ==45) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 400;
+                cy = 100;
+            }
+
+	    else if (id ==46) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 400;
+                cy = 120;
+            }
+
+	    else if (id ==47) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 400;
+                cy = 140;
+            }
+
+	    else if (id ==48) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 400;
+                cy = 160;
+            }
+
+
+            else if (id == 49) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 480;
+                cy = 100;
+            }
+            else if (id == 50) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 480;
+                cy = 120;
+            }
+            else if (id == 51) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 480;
+                cy = 140;
+            }
+            else if (id == 52) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 480;
+                cy = 160;
+            }
+            else if (id == 53) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 500;
+                cy = 100;
+            }
+            else if (id == 54) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 500;
+                cy = 120;
+            }
+            else if (id == 55) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 500;
+                cy = 140;
+            }
+            else if (id == 56) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 500;
+                cy = 160;
+            }
+            else if (id == 57) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 520;
+                cy = 100;
+            }
+            else if (id == 58) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 520;
+                cy = 120;
+            }
+            else if (id == 59) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 520;
+                cy = 140;
+            }
+            else if (id == 60) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 520;
+                cy = 160;
+            }
+            else if (id == 61) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 540;
+                cy = 100;
+            }
+            else if (id == 62) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 540;
+                cy = 120;
+            }
+            else if (id == 63) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 540;
+                cy = 140;
+            }
+            else if (id == 64) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 540;
+                cy = 160;
+            }
+            else if (id == 65) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 560;
+                cy = 100;
+            }
+            else if (id == 66) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 560;
+                cy = 120;
+            }
+
+	    else if (id ==67) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 560;
+                cy = 140;
+            }
+
+	    else if (id ==68) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 560;
+                cy = 160;
+            }
+
+	    else if (id ==69) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 580;
+                cy = 100;
+            }
+
+	    else if (id ==70) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 580;
+                cy = 120;
+            }
+
+	    else if (id ==71) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 580;
+                cy = 140;
+            }
+
+	    else if (id ==72) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 580;
+                cy = 160;
+            }
+
+
+            else if (id == 73) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 660;
+                cy = 100;
+            }
+            else if (id == 74) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 660;
+                cy = 120;
+            }
+            else if (id == 75) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 660;
+                cy = 140;
+            }
+            else if (id == 76) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 660;
+                cy = 160;
+            }
+            else if (id == 77) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 680;
+                cy = 100;
+            }
+            else if (id == 78) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 680;
+                cy = 120;
+            }
+            else if (id == 79) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 680;
+                cy = 140;
+            }
+            else if (id == 80) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 680;
+                cy = 160;
+            }
+            else if (id == 81) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 700;
+                cy = 100;
+            }
+            else if (id == 82) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 700;
+                cy = 120;
+            }
+            else if (id == 83) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 700;
+                cy = 140;
+            }
+            else if (id == 84) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 700;
+                cy = 160;
+            }
+            else if (id == 85) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 720;
+                cy = 100;
+            }
+            else if (id == 86) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 720;
+                cy = 120;
+            }
+            else if (id == 87) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 720;
+                cy = 140;
+            }
+            else if (id == 88) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 720;
+                cy = 160;
+            }
+            else if (id == 89) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 740;
+                cy = 100;
+            }
+            else if (id == 90) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 740;
+                cy = 120;
+            }
+
+	    else if (id ==91) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 740;
+                cy = 140;
+            }
+
+	    else if (id ==92) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 740;
+                cy = 160;
+            }
+
+	    else if (id ==93) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 760;
+                cy = 100;
+            }
+
+	    else if (id ==94) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 760;
+                cy = 120;
+            }
+
+	    else if (id ==95) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 760;
+                cy = 140;
+            }
+
+	    else if (id ==96) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 760;
+                cy = 160;
+            }
+
+            else if (id == 97) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 820;
+                cy = 200;
+            }
+            else if (id == 98) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 820;
+                cy = 220;
+            }
+            else if (id == 99) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 820;
+                cy = 240;
+            }
+            else if (id == 100) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 820;
+                cy = 260;
+            }
+            else if (id == 101) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 840;
+                cy = 200;
+            }
+            else if (id == 102) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 840;
+                cy = 220;
+            }
+            else if (id == 103) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 840;
+                cy = 240;
+            }
+            else if (id == 104) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 840;
+                cy = 260;
+            }
+            else if (id == 105) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 860;
+                cy = 200;
+            }
+            else if (id == 106) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 860;
+                cy = 220;
+	    }
+            else if (id == 107) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 860;
+                cy = 240;
+            }
+            else if (id == 108) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 860;
+                cy = 260;
+            }
+            else if (id == 109) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 880;
+                cy = 200;
+            }
+            else if (id == 110) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 880;
+                cy = 220;
+            }
+            else if (id == 111) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 880;
+                cy = 240;
+            }
+            else if (id == 112) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 880;
+                cy = 260;
+            }
+            else if (id == 113) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 900;
+                cy = 200;
+            }
+            else if (id == 114) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 900;
+                cy = 220;
+            }
+            else if (id == 115) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 900;
+                cy = 240;
+            }
+            else if (id == 116) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 900;
+                cy = 260;
+            }
+            else if (id == 117) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 920;
+                cy = 200;
+            }
+            else if (id == 118) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 920;
+                cy = 220;
+	    }
+            else if (id == 119) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 920;
+                cy = 240;
+            }
+            else if (id == 120) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 920;
+                cy = 260;
+            }
+
+
+            else if (id == 121) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 100;
+                cy = 360 + 100;
+            }
+            else if (id == 122) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 100;
+                cy = 380 + 100;
+            }
+            else if (id == 123) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 100;
+                cy = 400 + 100;
+            }
+            else if (id == 124) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 100;
+                cy = 420 + 100;
+            }
+            else if (id == 125) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 120;
+                cy = 360 + 100;
+            }
+            else if (id == 126) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 120;
+                cy = 380 + 100;
+            }
+            else if (id == 127) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 120;
+                cy = 400 + 100;
+            }
+            else if (id == 128) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 120;
+                cy = 420 + 100;
+            }
+            else if (id == 129) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 140;
+                cy = 360 + 100;
+            }
+            else if (id == 130) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 140;
+                cy = 380 + 100;
+            }
+            else if (id == 131) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 140;
+                cy = 400 + 100;
+            }
+            else if (id == 132) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 140;
+                cy = 420 + 100;
+            }
+            else if (id == 133) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 160;
+                cy = 360 + 100;
+            }
+            else if (id == 134) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 160;
+                cy = 380 + 100;
+            }
+            else if (id == 135) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 160;
+                cy = 400 + 100;
+            }
+            else if (id == 136) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 160;
+                cy = 420 + 100;
+            }
+            else if (id == 137) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 180;
+                cy = 360 + 100;
+            }
+            else if (id == 138) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 180;
+                cy = 380 + 100;
+            }
+
+	    else if (id ==139) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 180;
+                cy = 400 + 100;
+            }
+
+	    else if (id ==140) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 180;
+                cy = 420 + 100;
+            }
+
+	    else if (id ==141) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 200;
+                cy = 360 + 100;
+            }
+
+	    else if (id ==142) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 200;
+                cy = 380 + 100;
+            }
+
+	    else if (id ==143) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 200;
+                cy = 400 + 100;
+            }
+
+	    else if (id ==144) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 200;
+                cy = 420 + 100;
+            }
+            else if (id ==145) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 300;
+                cy = 100 + 100;
+            }
+            else if (id ==146) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 300;
+                cy = 120 + 100;
+            }
+            else if (id ==147) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 300;
+                cy = 140 + 100;
+            }
+            else if (id ==148) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 300;
+                cy = 160 + 100;
+            }
+            else if (id ==149) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 320;
+                cy = 100 + 100;
+            }
+            else if (id == 150) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 320;
+                cy = 120 + 100;
+            }
+            else if (id == 151) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 320;
+                cy = 140 + 100;
+            }
+            else if (id == 152) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 320;
+                cy = 160 + 100;
+            }
+            else if (id == 153) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 340;
+                cy = 100 + 100;
+            }
+            else if (id == 154) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 340;
+                cy = 120 + 100;
+            }
+            else if (id == 155) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 340;
+                cy = 140 + 100;
+            }
+            else if (id == 156) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 340;
+                cy = 160 + 100;
+            }
+            else if (id == 157) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 360;
+                cy = 100 + 100;
+            }
+            else if (id == 158) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 360;
+                cy = 120 + 100;
+            }
+            else if (id == 159) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 360;
+                cy = 140 + 100;
+            }
+            else if (id == 160) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 360;
+                cy = 160 + 100;
+            }
+            else if (id == 161) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 380;
+                cy = 100 + 100;
+            }
+            else if (id == 162) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 380;
+                cy = 120 + 100;
+            }
+	    else if (id ==163) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 380;
+                cy = 140 + 100;
+            }
+
+	    else if (id ==164) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 380;
+                cy = 160 + 100;
+            }
+
+	    else if (id ==165) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 400;
+                cy = 100 + 100;
+            }
+
+	    else if (id ==166) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 400;
+                cy = 120 + 100;
+            }
+
+	    else if (id ==167) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 400;
+                cy = 140 + 100;
+            }
+
+	    else if (id ==168) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 400;
+                cy = 160 + 100;
+            }
+
+            else if (id == 169) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 480;
+                cy = 100 + 100;
+            }
+            else if (id == 170) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 480;
+                cy = 120 + 100;
+            }
+            else if (id == 171) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 480;
+                cy = 140 + 100;
+            }
+            else if (id == 172) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 480;
+                cy = 160 + 100;
+            }
+            else if (id == 173) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 500;
+                cy = 100 + 100;
+            }
+            else if (id == 174) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 500;
+                cy = 120 + 100;
+            }
+            else if (id == 175) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 500;
+                cy = 140 + 100;
+            }
+            else if (id == 176) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 500;
+                cy = 160 + 100;
+            }
+            else if (id == 177) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 520;
+                cy = 100 + 100;
+            }
+            else if (id == 178) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 520;
+                cy = 120 + 100;
+            }
+            else if (id == 179) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 520;
+                cy = 140 + 100;
+            }
+            else if (id == 180) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 520;
+                cy = 160 + 100;
+            }
+            else if (id == 181) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 540;
+                cy = 100 + 100;
+            }
+            else if (id == 182) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 540;
+                cy = 120 + 100;
+            }
+            else if (id == 183) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 540;
+                cy = 140 + 100;
+            }
+            else if (id == 184) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 540;
+                cy = 160 + 100;
+            }
+            else if (id == 185) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 560;
+                cy = 100 + 100;
+            }
+            else if (id == 186) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 560;
+                cy = 120 + 100;
+            }
+
+	    else if (id ==187) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 560;
+                cy = 140 + 100;
+            }
+
+	    else if (id ==188) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 560;
+                cy = 160 + 100;
+            }
+
+	    else if (id ==189) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 580;
+                cy = 100 + 100;
+            }
+
+	    else if (id ==190) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 580;
+                cy = 120 + 100;
+            }
+
+	    else if (id ==191) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 580;
+                cy = 140 + 100;
+            }
+
+	    else if (id ==192) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 580;
+                cy = 160 + 100;
+            }
+
+
+            else if (id == 193) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 660;
+                cy = 100 + 100;
+            }
+            else if (id == 194) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 660;
+                cy = 120 + 100;
+            }
+            else if (id == 195) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 660;
+                cy = 140 + 100;
+            }
+            else if (id == 196) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 660;
+                cy = 160 + 100;
+            }
+            else if (id == 197) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 680;
+                cy = 100 + 100;
+            }
+            else if (id == 198) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 680;
+                cy = 120 + 100;
+            }
+            else if (id == 199) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 680;
+                cy = 140 + 100;
+            }
+            else if (id == 200) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 680;
+                cy = 160 + 100;
+            }
+            else if (id == 201) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 700;
+                cy = 100 + 100;
+            }
+            else if (id == 202) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 700;
+                cy = 120 + 100;
+            }
+            else if (id == 203) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 700;
+                cy = 140 + 100;
+            }
+            else if (id == 204) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 700;
+                cy = 160 + 100;
+            }
+            else if (id == 205) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 720;
+                cy = 100 + 100;
+            }
+            else if (id == 206) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 720;
+                cy = 120 + 100;
+            }
+            else if (id == 207) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 720;
+                cy = 140 + 100;
+            }
+            else if (id == 208) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 720;
+                cy = 160 + 100;
+            }
+            else if (id == 209) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 740;
+                cy = 100 + 100;
+            }
+            else if (id == 210) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 740;
+                cy = 120 + 100;
+            }
+
+	    else if (id ==211) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 740;
+                cy = 140 + 100;
+            }
+
+	    else if (id ==212) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 740;
+                cy = 160 + 100;
+            }
+
+	    else if (id ==213) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 760;
+                cy = 100 + 100;
+            }
+
+	    else if (id ==214) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 760;
+                cy = 120 + 100;
+            }
+
+	    else if (id ==215) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 760;
+                cy = 140 + 100;
+            }
+
+	    else if (id ==216) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 760;
+                cy = 160 + 100;
+            }
+
+            else if (id == 217) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 820;
+                cy = 200 + 100;
+            }
+            else if (id == 218) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 820;
+                cy = 220 + 100;
+            }
+            else if (id == 219) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 820;
+                cy = 240 + 100;
+            }
+            else if (id == 220) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 820;
+                cy = 260 + 100;
+            }
+            else if (id == 221) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 840;
+                cy = 200 + 100;
+            }
+            else if (id == 222) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 840;
+                cy = 220 + 100;
+            }
+            else if (id == 223) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 840;
+                cy = 240 + 100;
+            }
+            else if (id == 224) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 840;
+                cy = 260 + 100;
+            }
+            else if (id == 225) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 860;
+                cy = 200 + 100;
+            }
+            else if (id == 226) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 860;
+                cy = 220 + 100;
+	    }
+            else if (id == 227) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 860;
+                cy = 240 + 100;
+            }
+            else if (id == 228) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 860;
+                cy = 260 + 100;
+            }
+            else if (id == 229) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 880;
+                cy = 200 + 100;
+            }
+            else if (id == 230) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 880;
+                cy = 220 + 100;
+            }
+            else if (id == 231) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 880;
+                cy = 240 + 100;
+            }
+            else if (id == 232) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 880;
+                cy = 260 + 100;
+            }
+            else if (id == 233) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 900;
+                cy = 200 + 100;
+            }
+            else if (id == 234) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 900;
+                cy = 220 + 100;
+            }
+            else if (id == 235) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 900;
+                cy = 240 + 100;
+            }
+            else if (id == 236) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 900;
+                cy = 260 + 100;
+            }
+            else if (id == 237) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 920;
+                cy = 200 + 100;
+            }
+            else if (id == 238) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 920;
+                cy = 220 + 100;
+	    }
+            else if (id == 239) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 920;
+                cy = 240 + 100;
+            }
+            else if (id == 240) {
+                ctx2.strokeStyle = "rgb(0 255 0)";
+                ctx2.fillStyle = "rgb(0 " + col + " 0)";
+                cx = 920;
+                cy = 260 + 100;
+            }
+*/
+//            console.log(radius);
+
+
+            ctx2.beginPath();
+            ctx2.arc(cx, cy, radius, 0, 2 * Math.PI);
+            ctx2.closePath();
+            ctx2.fill();
+
+        }
+
+    </script>
+  </body>
+</html>
